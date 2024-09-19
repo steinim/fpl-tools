@@ -1,0 +1,3 @@
+/output/*
+!/output/0_README.txt
+my-id.txt

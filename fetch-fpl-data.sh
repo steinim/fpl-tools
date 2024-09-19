@@ -1,7 +1,8 @@
 #!/bin/bash
 
 url="https://fantasy.premierleague.com/api/bootstrap-static/"
+output="output/${0}.json"
 
-curl -o output/fpl_data.json $url
+curl -o $output $url
 
-echo "Data fetched and saved to fpl_data.json"
+echo "Data fetched and saved to $output"
