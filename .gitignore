@@ -1,3 +1,6 @@
 /output/*
 !/output/0_README.txt
 my-id.txt
+cookies.txt
+package-lock.json
+node_modules
