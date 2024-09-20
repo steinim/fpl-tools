@@ -1,12 +1,14 @@
 import puppeteer from 'puppeteer';
 import fetch from 'node-fetch';
+import fs from 'fs/promises'; // Use promises for file operations
+import path from 'path'; // For getting the script name
 
 // Function to show the usage message
 function showUsage() {
   console.log(`
-  Usage: node login.js <email> <password> <manager_id>
+  Usage: node fetch-my-team.js <email> <password> <manager_id>
 
-  Example: node login.js your_email@example.com your_password 565066
+  Example: node fetch-my-team.js your_email@example.com your_password 565066
   `);
 }
 
@@ -21,6 +23,10 @@ if (args.length < 3) {
 const email = args[0];
 const password = args[1];
 const managerId = args[2];
+// Get the name of the script without the directory and extension
+const scriptName = path.basename(process.argv[1], path.extname(process.argv[1]));
+// Write the enriched team data to a file using the script name and manager ID
+const filePath = `output/${scriptName}_${managerId}.json`;
 
 (async () => {
   try {
@@ -36,7 +42,7 @@ const managerId = args[2];
     const loggedIn = await page.$('a[href="/accounts/logout"]'); // Replace with actual selector for logout or profile
 
     if (!loggedIn) {
-      console.log("Not logged in. Attempting to log in...");
+      console.log('Not logged in. Attempting to log in...');
 
       // If not logged in, go to the login page
       await page.goto('https://users.premierleague.com/accounts/login/', {
@@ -76,7 +82,9 @@ const managerId = args[2];
     });
 
     const data = await response.json();
-    console.log(data);
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2)); // Write to file with pretty JSON
+   
+    console.log(`Team data saved to ${filePath}`);
 
   } catch (error) {
     console.error('An error occurred:', error);
