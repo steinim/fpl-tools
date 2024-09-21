@@ -5,3 +5,7 @@ cookies.txt
 package-lock.json
 node_modules
 .DS_Store
+analyze_fpl_team.py
+get-team-ids.js
+output_old/
+venv/
