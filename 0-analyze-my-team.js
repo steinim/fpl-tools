@@ -160,7 +160,7 @@ const analyzeTeam = async (players) => {
 };
 
 
-// Example team to analyze
+// My team
 const team = [
     { name: 'Dean Henderson', team: 'Crystal Palace' },
     { name: 'Taylor Harwood-Bellis', team: 'Southampton' },

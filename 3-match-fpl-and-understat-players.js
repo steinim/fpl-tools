@@ -68,7 +68,6 @@ async function mapFPLToUnderstat() {
         understatTeam: bestMatch.team,
         matchScore: bestMatch.score
       });
-      console.log(`Matched FPL player with Understat data: ${fplPlayer.name} -> ${bestMatch.name} (Score: ${bestMatch.score})`);
     } else {
       console.warn(`No strong match found for FPL player: ${fplPlayer.name} (${fplPlayer.team})`);
     }

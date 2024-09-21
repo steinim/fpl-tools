@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { promises as fs } from 'fs'; // fs.promises is the modern way in ES modules
+import { promises as fs } from 'fs';
 
 // Fetch FPL players from the /bootstrap-static endpoint
 async function fetchFPLPlayers() {
