@@ -1,12 +1,19 @@
 #!/usr/bin/env node
 
+// fpl.js
+
 import { Command } from 'commander';
+import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import teamCommand from './commands/team.js';
 import fixturesCommand from './commands/fixtures.js';
-import playerCommand from './commands/player.js'; // Import the player command
+import playerCommand from './commands/player.js';
+import playersCommand from './commands/players.js';
+import picksCommand from './commands/picks.js';
+import searchPlayerCommand from './commands/searchPlayer.js';
+import teamPlayersCommand from './commands/teamPlayers.js';
 import config from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,7 +26,7 @@ program
   .description('Fantasy Premier League data retrieval tool')
   .version('1.0.0');
 
-// Team command with detailed help
+// Team command
 const team = program
   .command('team')
   .description('Retrieve information about FPL teams')
@@ -70,7 +77,7 @@ team.action(async (options) => {
   }
 });
 
-// Fixtures command with detailed help
+// Fixtures command
 const fixtures = program
   .command('fixtures')
   .description('Retrieve fixtures for specified gameweeks')
@@ -111,7 +118,7 @@ fixtures.action(async (options) => {
   await fixturesCommand(fromGameweek, toGameweek);
 });
 
-// Player command with detailed help
+// Player command
 const player = program
   .command('player')
   .description('Retrieve detailed information about a specific player')
@@ -139,13 +146,152 @@ player.action(async (options) => {
   await playerCommand(playerId);
 });
 
+// Players command
+const players = program
+  .command('players')
+  .description('Retrieve detailed information about multiple players')
+  .usage('[options]')
+  .option('--id <player-ids...>', 'Player ID(s), can provide multiple IDs separated by spaces')
+  .option('--file <path>', 'Path to a file containing player IDs (one per line)');
+
+players.addHelpText(
+  'after',
+  `
+Description:
+  Retrieves detailed information about multiple players, including past performance and upcoming fixtures.
+  You can provide multiple player IDs using the --id option or specify a file with player IDs using --file.
+  The data is saved to output/player-<player-id>-<YYYY-MM-DD>.json for each player.
+`
+);
+
+players.action(async (options) => {
+  let playerIds = [];
+
+  if (options.id) {
+    playerIds = options.id;
+  } else if (options.file) {
+    try {
+      const fileContent = fs.readFileSync(options.file, 'utf-8');
+      playerIds = fileContent.split(/\r?\n/).filter((line) => line.trim() !== '');
+    } catch (error) {
+      console.error(`Error reading file "${options.file}":`, error.message);
+      process.exit(1);
+    }
+  } else {
+    console.error('Error: No player IDs provided.');
+    process.exit(1);
+  }
+
+  for (const playerId of playerIds) {
+    // Parameter Validation
+    if (!/^\d+$/.test(playerId) || parseInt(playerId, 10) <= 0) {
+      console.error(`Error: Player ID "${playerId}" must be a positive integer.`);
+      continue; // Skip invalid player IDs
+    }
+
+    await playerCommand(playerId);
+  }
+});
+
+// Picks command
+const picks = program
+  .command('picks')
+  .description("Retrieve a manager's squad picks for a specific gameweek")
+  .usage('[options]')
+  .option('--id <team-id>', 'Team ID (defaults to myId from config.js)')
+  .option('--gw <gameweek>', 'Gameweek number (defaults to current gameweek)');
+
+picks.addHelpText(
+  'after',
+  `
+Description:
+  Retrieves the details of a manager's 15 players (squad picks) for the specified gameweek.
+  If --id is not provided, the default team ID from the configuration (myId) is used.
+  If --gw is not provided, the current gameweek is used.
+  The data is saved to output/picks-<team-id>-GW<gameweek>-<YYYY-MM-DD>.json.
+`
+);
+
+picks.action(async (options) => {
+  const teamId = options.id || config.myId;
+  let gameweek = options.gw;
+
+  // Validate teamId
+  if (!/^\d+$/.test(teamId) || parseInt(teamId, 10) <= 0) {
+    console.error('Error: Team ID must be a positive integer.');
+    process.exit(1);
+  }
+
+  await picksCommand(teamId, gameweek);
+});
+
+// Search-player command
+const searchPlayer = program
+  .command('search-player')
+  .description('Search for a player ID based on name')
+  .usage('--name <player-name>')
+  .requiredOption('--name <player-name>', 'Player name to search for');
+
+searchPlayer.addHelpText(
+  'after',
+  `
+Description:
+  Searches for players whose names match the provided input.
+  Non-English characters are mapped to English equivalents (e.g., 'Ødegaard' becomes 'Odegaard').
+  You can search using first names, last names, or both.
+`
+);
+
+searchPlayer.action(async (options) => {
+  const playerName = options.name;
+
+  if (!playerName || typeof playerName !== 'string') {
+    console.error('Error: Please provide a valid player name using --name.');
+    process.exit(1);
+  }
+
+  await searchPlayerCommand(playerName);
+});
+
+// Team-players command
+const teamPlayers = program
+  .command('team-players')
+  .description('List all players on a given team, ordered by total points per position')
+  .usage('--team <team-name>')
+  .requiredOption('--team <team-name>', 'Team name to list players from');
+
+teamPlayers.addHelpText(
+  'after',
+  `
+Description:
+  Lists all players from the specified team, grouped by position.
+  Players within each position are ordered by highest total points.
+  Positions include Goalkeepers, Defenders, Midfielders, and Forwards.
+`
+);
+
+teamPlayers.action(async (options) => {
+  const teamName = options.team;
+
+  if (!teamName || typeof teamName !== 'string') {
+    console.error('Error: Please provide a valid team name using --team.');
+    process.exit(1);
+  }
+
+  await teamPlayersCommand(teamName);
+});
+
 // Enhance the help output to list available commands
 program.on('--help', () => {
   console.log('');
   console.log('Available Commands:');
-  console.log('  team       Retrieve information about FPL teams');
-  console.log('  fixtures   Retrieve fixtures for specified gameweeks');
-  console.log('  player     Retrieve detailed information about a specific player');
+  console.log('  team          Retrieve information about FPL teams');
+  console.log('  fixtures      Retrieve fixtures for specified gameweeks');
+  console.log('  player        Retrieve detailed information about a specific player');
+  console.log('  players       Retrieve detailed information about multiple players');
+  console.log("  picks         Retrieve a manager's squad picks for a specific gameweek");
+  console.log('  search-player Search for a player ID based on name');
+  console.log('  team-players  List all players on a given team, ordered by total points per position');
   console.log('');
   console.log('For more information on a specific command, use "fpl <command> --help"');
 });
