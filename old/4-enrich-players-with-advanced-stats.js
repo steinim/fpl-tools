@@ -29,6 +29,7 @@ function extractShotsData(scriptContent) {
 async function fetchUnderstatData(playerId) {
   try {
     const url = `https://understat.com/player/${playerId}`;
+    //console.log(`Fetching Understat data from: ${url}`);  // Debug URL
     const { data } = await axios.get(url);
 
     // Dynamically import cheerio
@@ -47,6 +48,8 @@ async function fetchUnderstatData(playerId) {
     if (!scriptContent) {
       throw new Error('shotsData script not found');
     }
+
+    //console.log('Found shotsData script');  // Debug script found
 
     // Extract and parse shotsData
     const playerData = extractShotsData(scriptContent);
@@ -68,8 +71,11 @@ async function enrichFPLWithAdvancedStats() {
   const enrichedData = [];
 
   for (const player of mapping) {
+    //console.log('Processing player:', player.fplName);  // Now use fplName correctly
     if (player.understatId) {
+      //console.log(`Fetching data for player with Understat ID: ${player.understatId}`);  // Debug ID check
       const understatData = await fetchUnderstatData(player.understatId);
+      //console.log('Enriching', player.fplName);  // This should now be printed correctly
       enrichedData.push({
         ...player,
         xG: understatData?.xG || 0,
@@ -81,7 +87,7 @@ async function enrichFPLWithAdvancedStats() {
   }
 
   await fs.writeFile('output/4-enriched_fpl_data.json', JSON.stringify(enrichedData, null, 2));
-  console.log('Enriched FPL data saved to enriched_fpl_data.json');
+  console.log('Enriched FPL data saved to output/4-enriched_fpl_data.json');
 }
 
 (async () => {

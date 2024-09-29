@@ -1,5 +1,7 @@
 /output/*
 !/output/0_README.txt
+output_old/
+**/output/*
 my-id.txt
 cookies.txt
 package-lock.json
@@ -9,3 +11,4 @@ analyze_fpl_team.py
 get-team-ids.js
 output_old/
 venv/
+**/output/*
