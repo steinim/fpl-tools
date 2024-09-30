@@ -95,20 +95,25 @@ export async function getUnderstatPlayerId(playerDetails) {
 
     let bestMatch = { target: '', rating: 0 };
     for (const inputName of normalizedInputNames) {
-      const match = stringSimilarity.findBestMatch(inputName, allUnderstatNames).bestMatch;
+      const match = stringSimilarity.findBestMatch(inputName, allUnderstatNames)
+        .bestMatch;
       if (match.rating > bestMatch.rating) {
         bestMatch = match;
       }
     }
 
-    if (bestMatch.rating > 0.6) { // Adjust threshold as needed
+    if (bestMatch.rating > 0.6) {
+      // Adjust threshold as needed
       return understatPlayersMap[bestMatch.target].id;
     } else {
       console.warn(`No Understat data found for player "${playerDetails.web_name}".`);
       return null;
     }
   } catch (error) {
-    console.error(`Error fetching Understat player ID for "${playerDetails.web_name}":`, error.message);
+    console.error(
+      `Error fetching Understat player ID for "${playerDetails.web_name}":`,
+      error.message
+    );
     return null;
   }
 }
@@ -154,7 +159,10 @@ export async function getUnderstatPlayerStatsPerGameweek(playerId) {
 
     return statsPerGameweek;
   } catch (error) {
-    console.error(`Error fetching Understat stats for player ID "${playerId}":`, error.message);
+    console.error(
+      `Error fetching Understat stats for player ID "${playerId}":`,
+      error.message
+    );
     return null;
   }
 }
@@ -177,15 +185,15 @@ function getPlayerNameVariations(playerDetails) {
 
   // Any known nicknames or common names (you can expand this list)
   const nicknameMapping = {
-    'Gabriel': ['Gabriel Magalhaes'],
-    'Jota': ['Diogo Jota'],
+    Gabriel: ['Gabriel Magalhaes'],
+    Jota: ['Diogo Jota'],
     'João Pedro': ['Joao Pedro'],
-    'Henderson': ['Dean Henderson'],
-    'Gvardiol': ['Josko Gvardiol'],
-    'Salah': ['Mohamed Salah'],
-    'Haaland': ['Erling Haaland'],
-    'Watkins': ['Ollie Watkins'],
-    'Gordon': ['Anthony Gordon'],
+    Henderson: ['Dean Henderson'],
+    Gvardiol: ['Josko Gvardiol'],
+    Salah: ['Mohamed Salah'],
+    Haaland: ['Erling Haaland'],
+    Watkins: ['Ollie Watkins'],
+    Gordon: ['Anthony Gordon'],
     // Add more mappings as needed
   };
 
@@ -206,7 +214,9 @@ function normalizeName(name) {
 
 export function extractJsonFromScript(scriptContent, variableName) {
   try {
-    const regex = new RegExp(`var\\s+${variableName}\\s+=\\s+JSON\\.parse\\('([^']+)'\\);`);
+    const regex = new RegExp(
+      `var\\s+${variableName}\\s+=\\s+JSON\\.parse\\('([^']+)'\\);`
+    );
     const match = scriptContent.match(regex);
     if (!match) {
       throw new Error(`Unable to find variable ${variableName} in script content.`);
@@ -215,14 +225,19 @@ export function extractJsonFromScript(scriptContent, variableName) {
     const encodedJsonString = match[1];
 
     // Decode escaped characters
-    const decodedJsonString = encodedJsonString.replace(/\\x([0-9A-Fa-f]{2})/g, (match, p1) => {
-      return String.fromCharCode(parseInt(p1, 16));
-    });
+    const decodedJsonString = encodedJsonString.replace(
+      /\\x([0-9A-Fa-f]{2})/g,
+      (match, p1) => {
+        return String.fromCharCode(parseInt(p1, 16));
+      }
+    );
 
     const jsonData = JSON.parse(decodedJsonString);
     return jsonData;
   } catch (error) {
-    throw new Error(`Failed to parse JSON from Understat ${variableName}: ${error.message}`);
+    throw new Error(
+      `Failed to parse JSON from Understat ${variableName}: ${error.message}`
+    );
   }
 }
 
@@ -251,13 +266,17 @@ export async function getGameweekFromDate(date) {
   }
 
   // If date is before all gameweeks
-  const earliestGameweek = Math.min(...Object.keys(gameweekDateMapping).map(Number));
+  const earliestGameweek = Math.min(
+    ...Object.keys(gameweekDateMapping).map(Number)
+  );
   if (targetDate < gameweekDateMapping[earliestGameweek].start) {
     return earliestGameweek;
   }
 
   // If date is after all gameweeks
-  const latestGameweek = Math.max(...Object.keys(gameweekDateMapping).map(Number));
+  const latestGameweek = Math.max(
+    ...Object.keys(gameweekDateMapping).map(Number)
+  );
   if (targetDate > gameweekDateMapping[latestGameweek].end) {
     return latestGameweek;
   }
@@ -310,5 +329,22 @@ export async function getFixturesData() {
   } catch (error) {
     console.error('Error fetching fixtures data:', error.message);
     return null;
+  }
+}
+
+// Moved from picks.js
+export async function getCurrentGameweek() {
+  const url = `${config.apiBaseUrl}/bootstrap-static/`;
+  try {
+    const response = await axios.get(url);
+    const data = response.data;
+    const currentEvent = data.events.find((event) => event.is_current);
+    if (currentEvent) {
+      return currentEvent.id;
+    } else {
+      throw new Error('Could not determine current gameweek.');
+    }
+  } catch (error) {
+    throw new Error('Failed to fetch current gameweek: ' + error.message);
   }
 }

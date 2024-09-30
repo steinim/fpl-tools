@@ -3,8 +3,7 @@
 // fpl.js
 
 import { Command } from 'commander';
-import axios from 'axios';
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import teamCommand from './commands/team.js';
@@ -27,259 +26,198 @@ program
   .version('1.0.0');
 
 // Team command
-const team = program
+program
   .command('team')
   .description('Retrieve information about FPL teams')
   .usage('[options]')
-  .option('--id <team-ids...>', 'Team ID(s), can provide multiple IDs separated by spaces')
-  .option('--file <path>', 'Path to a file containing team IDs (one per line)');
-
-team.addHelpText(
-  'after',
-  `
-Description:
-  Retrieves information about specific FPL teams based on the provided team IDs.
-  You can provide multiple team IDs using the --id option or specify a file with team IDs using --file.
-  If no team IDs are provided, the default IDs from the configuration are used.
-  If the output file already exists, you will be prompted to choose whether to overwrite it.
-  The data is saved to output/team-<team-id>-<YYYY-MM-DD>.json.
-`
-);
-
-team.action(async (options) => {
-  let teamIds = [];
-
-  if (options.id) {
-    teamIds = options.id;
-  } else if (options.file) {
+  .option('-i, --id <team-ids...>', 'Team ID(s), can provide multiple IDs separated by spaces')
+  .option('-f, --file <path>', 'Path to a file containing team IDs (one per line)')
+  .action(async (options) => {
     try {
-      const fileContent = fs.readFileSync(options.file, 'utf-8');
-      teamIds = fileContent.split(/\r?\n/).filter((line) => line.trim() !== '');
+      let teamIds = [];
+
+      if (options.id) {
+        teamIds = options.id;
+      } else if (options.file) {
+        const fileContent = await fs.readFile(options.file, 'utf-8');
+        teamIds = fileContent.split(/\r?\n/).filter((line) => line.trim() !== '');
+      } else if (config.defaultTeamIds && config.defaultTeamIds.length > 0) {
+        teamIds = config.defaultTeamIds;
+      } else {
+        console.error('Error: No team IDs provided and no default team IDs configured.');
+        process.exit(1);
+      }
+
+      for (const teamId of teamIds) {
+        // Parameter Validation
+        if (!/^\d+$/.test(teamId) || parseInt(teamId, 10) <= 0) {
+          console.error(`Error: Team ID "${teamId}" must be a positive integer.`);
+          continue; // Skip invalid team IDs
+        }
+
+        await teamCommand(teamId);
+      }
     } catch (error) {
-      console.error(`Error reading file "${options.file}":`, error.message);
-      process.exit(1);
+      console.error('An error occurred:', error.message);
     }
-  } else if (config.defaultTeamIds && config.defaultTeamIds.length > 0) {
-    teamIds = config.defaultTeamIds;
-  } else {
-    console.error('Error: No team IDs provided and no default team IDs configured.');
-    process.exit(1);
-  }
-
-  for (const teamId of teamIds) {
-    // Parameter Validation
-    if (!/^\d+$/.test(teamId) || parseInt(teamId, 10) <= 0) {
-      console.error(`Error: Team ID "${teamId}" must be a positive integer.`);
-      continue; // Skip invalid team IDs
-    }
-
-    await teamCommand(teamId);
-  }
-});
+  });
 
 // Fixtures command
-const fixtures = program
+program
   .command('fixtures')
   .description('Retrieve fixtures for specified gameweeks')
   .usage('--from <gameweek> --to <gameweek>')
   .requiredOption('--from <gameweek>', 'Starting gameweek number (inclusive)')
-  .requiredOption('--to <gameweek>', 'Ending gameweek number (inclusive)');
+  .requiredOption('--to <gameweek>', 'Ending gameweek number (inclusive)')
+  .action(async (options) => {
+    try {
+      const fromGameweek = parseInt(options.from, 10);
+      const toGameweek = parseInt(options.to, 10);
 
-fixtures.addHelpText(
-  'after',
-  `
-Description:
-  Retrieves fixture information for the specified range of gameweeks.
-  Both --from and --to options are required and must be valid gameweek numbers.
-  The data is saved to output/fixtures-<from>-<to>.json.
-`
-);
+      // Parameter Validation
+      const MAX_GAMEWEEK = 38; // Adjust based on the current season
 
-fixtures.action(async (options) => {
-  const fromGameweek = parseInt(options.from, 10);
-  const toGameweek = parseInt(options.to, 10);
+      if (
+        isNaN(fromGameweek) ||
+        isNaN(toGameweek) ||
+        fromGameweek <= 0 ||
+        toGameweek <= 0 ||
+        fromGameweek > toGameweek ||
+        fromGameweek > MAX_GAMEWEEK ||
+        toGameweek > MAX_GAMEWEEK
+      ) {
+        console.error(`Error: Please provide valid gameweek numbers between 1 and ${MAX_GAMEWEEK}.`);
+        process.exit(1);
+      }
 
-  // Parameter Validation
-  const MAX_GAMEWEEK = 38; // Adjust based on the current season
-
-  if (
-    isNaN(fromGameweek) ||
-    isNaN(toGameweek) ||
-    fromGameweek <= 0 ||
-    toGameweek <= 0 ||
-    fromGameweek > toGameweek ||
-    fromGameweek > MAX_GAMEWEEK ||
-    toGameweek > MAX_GAMEWEEK
-  ) {
-    console.error(`Error: Please provide valid gameweek numbers between 1 and ${MAX_GAMEWEEK}.`);
-    process.exit(1);
-  }
-
-  await fixturesCommand(fromGameweek, toGameweek);
-});
+      await fixturesCommand(fromGameweek, toGameweek);
+    } catch (error) {
+      console.error('An error occurred:', error.message);
+    }
+  });
 
 // Player command
-const player = program
+program
   .command('player')
   .description('Retrieve detailed information about a specific player')
   .usage('--id <player-id>')
-  .requiredOption('--id <player-id>', 'Player ID');
+  .requiredOption('-i, --id <player-id>', 'Player ID')
+  .action(async (options) => {
+    try {
+      const playerId = options.id;
 
-player.addHelpText(
-  'after',
-  `
-Description:
-  Retrieves in-depth information about a specific player, including past performance and upcoming fixtures.
-  The data is saved to output/player-<player-id>-<YYYY-MM-DD>.json.
-`
-);
+      // Parameter Validation
+      if (!/^\d+$/.test(playerId) || parseInt(playerId, 10) <= 0) {
+        console.error('Error: Player ID must be a positive integer.');
+        process.exit(1);
+      }
 
-player.action(async (options) => {
-  const playerId = options.id;
-
-  // Parameter Validation
-  if (!/^\d+$/.test(playerId) || parseInt(playerId, 10) <= 0) {
-    console.error('Error: Player ID must be a positive integer.');
-    process.exit(1);
-  }
-
-  await playerCommand(playerId);
-});
+      await playerCommand(playerId);
+    } catch (error) {
+      console.error('An error occurred:', error.message);
+    }
+  });
 
 // Players command
-const players = program
+program
   .command('players')
   .description('Retrieve detailed information about multiple players')
   .usage('[options]')
-  .option('--id <player-ids...>', 'Player ID(s), can provide multiple IDs separated by spaces')
-  .option('--file <path>', 'Path to a file containing player IDs (one per line)');
-
-players.addHelpText(
-  'after',
-  `
-Description:
-  Retrieves detailed information about multiple players, including past performance and upcoming fixtures.
-  You can provide multiple player IDs using the --id option or specify a file with player IDs using --file.
-  The data is saved to output/player-<player-id>-<YYYY-MM-DD>.json for each player.
-`
-);
-
-players.action(async (options) => {
-  let playerIds = [];
-
-  if (options.id) {
-    playerIds = options.id;
-  } else if (options.file) {
+  .option('-i, --id <player-ids...>', 'Player ID(s), can provide multiple IDs separated by spaces')
+  .option('-f, --file <path>', 'Path to a file containing player IDs (one per line)')
+  .action(async (options) => {
     try {
-      const fileContent = fs.readFileSync(options.file, 'utf-8');
-      playerIds = fileContent.split(/\r?\n/).filter((line) => line.trim() !== '');
+      let playerIds = [];
+
+      if (options.id) {
+        playerIds = options.id;
+      } else if (options.file) {
+        const fileContent = await fs.readFile(options.file, 'utf-8');
+        playerIds = fileContent.split(/\r?\n/).filter((line) => line.trim() !== '');
+      } else {
+        console.error('Error: No player IDs provided.');
+        process.exit(1);
+      }
+
+      for (const playerId of playerIds) {
+        // Parameter Validation
+        if (!/^\d+$/.test(playerId) || parseInt(playerId, 10) <= 0) {
+          console.error(`Error: Player ID "${playerId}" must be a positive integer.`);
+          continue; // Skip invalid player IDs
+        }
+
+        await playerCommand(playerId);
+      }
     } catch (error) {
-      console.error(`Error reading file "${options.file}":`, error.message);
-      process.exit(1);
+      console.error('An error occurred:', error.message);
     }
-  } else {
-    console.error('Error: No player IDs provided.');
-    process.exit(1);
-  }
-
-  for (const playerId of playerIds) {
-    // Parameter Validation
-    if (!/^\d+$/.test(playerId) || parseInt(playerId, 10) <= 0) {
-      console.error(`Error: Player ID "${playerId}" must be a positive integer.`);
-      continue; // Skip invalid player IDs
-    }
-
-    await playerCommand(playerId);
-  }
-});
+  });
 
 // Picks command
-const picks = program
+program
   .command('picks')
   .description("Retrieve a manager's squad picks for a specific gameweek")
   .usage('[options]')
-  .option('--id <team-id>', 'Team ID (defaults to myId from config.js)')
-  .option('--gw <gameweek>', 'Gameweek number (defaults to current gameweek)');
+  .option('-i, --id <team-id>', 'Team ID (defaults to myId from config.js)')
+  .option('-g, --gw <gameweek>', 'Gameweek number (defaults to current gameweek)')
+  .action(async (options) => {
+    try {
+      const teamId = options.id || config.myId;
+      const gameweek = options.gw;
 
-picks.addHelpText(
-  'after',
-  `
-Description:
-  Retrieves the details of a manager's 15 players (squad picks) for the specified gameweek.
-  If --id is not provided, the default team ID from the configuration (myId) is used.
-  If --gw is not provided, the current gameweek is used.
-  The data is saved to output/picks-<team-id>-GW<gameweek>-<YYYY-MM-DD>.json.
-`
-);
+      // Validate teamId
+      if (!/^\d+$/.test(teamId) || parseInt(teamId, 10) <= 0) {
+        console.error('Error: Team ID must be a positive integer.');
+        process.exit(1);
+      }
 
-picks.action(async (options) => {
-  const teamId = options.id || config.myId;
-  let gameweek = options.gw;
-
-  // Validate teamId
-  if (!/^\d+$/.test(teamId) || parseInt(teamId, 10) <= 0) {
-    console.error('Error: Team ID must be a positive integer.');
-    process.exit(1);
-  }
-
-  await picksCommand(teamId, gameweek);
-});
+      await picksCommand(teamId, gameweek);
+    } catch (error) {
+      console.error('An error occurred:', error.message);
+    }
+  });
 
 // Search-player command
-const searchPlayer = program
+program
   .command('search-player')
   .description('Search for a player ID based on name')
   .usage('--name <player-name>')
-  .requiredOption('--name <player-name>', 'Player name to search for');
+  .requiredOption('-n, --name <player-name>', 'Player name to search for')
+  .action(async (options) => {
+    try {
+      const playerName = options.name;
 
-searchPlayer.addHelpText(
-  'after',
-  `
-Description:
-  Searches for players whose names match the provided input.
-  Non-English characters are mapped to English equivalents (e.g., 'Ødegaard' becomes 'Odegaard').
-  You can search using first names, last names, or both.
-`
-);
+      if (!playerName || typeof playerName !== 'string') {
+        console.error('Error: Please provide a valid player name using --name.');
+        process.exit(1);
+      }
 
-searchPlayer.action(async (options) => {
-  const playerName = options.name;
-
-  if (!playerName || typeof playerName !== 'string') {
-    console.error('Error: Please provide a valid player name using --name.');
-    process.exit(1);
-  }
-
-  await searchPlayerCommand(playerName);
-});
+      await searchPlayerCommand(playerName);
+    } catch (error) {
+      console.error('An error occurred:', error.message);
+    }
+  });
 
 // Team-players command
-const teamPlayers = program
+program
   .command('team-players')
   .description('List all players on a given team, ordered by total points per position')
   .usage('--team <team-name>')
-  .requiredOption('--team <team-name>', 'Team name to list players from');
+  .requiredOption('-t, --team <team-name>', 'Team name to list players from')
+  .action(async (options) => {
+    try {
+      const teamName = options.team;
 
-teamPlayers.addHelpText(
-  'after',
-  `
-Description:
-  Lists all players from the specified team, grouped by position.
-  Players within each position are ordered by highest total points.
-  Positions include Goalkeepers, Defenders, Midfielders, and Forwards.
-`
-);
+      if (!teamName || typeof teamName !== 'string') {
+        console.error('Error: Please provide a valid team name using --team.');
+        process.exit(1);
+      }
 
-teamPlayers.action(async (options) => {
-  const teamName = options.team;
-
-  if (!teamName || typeof teamName !== 'string') {
-    console.error('Error: Please provide a valid team name using --team.');
-    process.exit(1);
-  }
-
-  await teamPlayersCommand(teamName);
-});
+      await teamPlayersCommand(teamName);
+    } catch (error) {
+      console.error('An error occurred:', error.message);
+    }
+  });
 
 // Enhance the help output to list available commands
 program.on('--help', () => {

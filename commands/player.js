@@ -1,9 +1,8 @@
 // commands/player.js
 
 import axios from 'axios';
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import inquirer from 'inquirer';
 import config from '../config.js';
 import {
@@ -12,21 +11,18 @@ import {
   getUnderstatPlayerStatsPerGameweek,
 } from './utils.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-export default async function main(playerId) {
-  console.log(`Starting data retrieval for player ID ${playerId}...`);
-
-  // Validate playerId
-  if (!/^\d+$/.test(playerId) || parseInt(playerId, 10) <= 0) {
-    throw new Error('Player ID must be a positive integer.');
-  }
-
-  const playerSummaryUrl = `${config.apiBaseUrl}/element-summary/${playerId}/`;
-  const bootstrapUrl = `${config.apiBaseUrl}/bootstrap-static/`;
-
+export default async function playerCommand(playerId) {
   try {
+    console.log(`Starting data retrieval for player ID ${playerId}...`);
+
+    // Validate playerId
+    if (!/^\d+$/.test(playerId) || parseInt(playerId, 10) <= 0) {
+      throw new Error('Player ID must be a positive integer.');
+    }
+
+    const playerSummaryUrl = `${config.apiBaseUrl}/element-summary/${playerId}/`;
+    const bootstrapUrl = `${config.apiBaseUrl}/bootstrap-static/`;
+
     // Fetch data
     const [playerSummaryResponse, bootstrapResponse] = await Promise.all([
       axios.get(playerSummaryUrl),
@@ -106,7 +102,6 @@ export default async function main(playerId) {
     const fixturesWithTeamNames = playerSummaryData.fixtures.map((fixture) => {
       // Determine opponent team based on is_home
       const opponentTeamId = fixture.is_home ? fixture.team_a : fixture.team_h;
-      console.log(`Found opponent team ID for ${playerName}: ${opponentTeamId}`);
       // Add opponent_team field to fixture
       fixture.opponent_team = opponentTeamId;
       // Add opponent_team_name using addTeamName
@@ -115,9 +110,6 @@ export default async function main(playerId) {
         'opponent_team',
         'opponent_team_name',
         teamIdToName
-      );
-      console.log(
-        `Adding opponent team information to the game where ${playerInfo.full_name} plays against ${fixtureWithTeamName.opponent_team_name} in ${fixture.event_name}.`
       );
       return fixtureWithTeamName;
     });
@@ -177,37 +169,6 @@ export default async function main(playerId) {
       console.log(`Couldn't find Understat player ID for ${playerName}.`);
     }
 
-    // Function to get predicted points using the Flask API
-    async function getPredictedPoints(playerInfo) {
-      try {
-        const response = await axios.post(
-          'http://127.0.0.1:5000/predict',
-          {
-            features: {
-              form: playerInfo.form,
-              average_points: playerInfo.average_points,
-              xG: playerInfo.xG || 0,
-              xA: playerInfo.xA || 0,
-              average_minutes: playerInfo.average_minutes,
-              fixture_difficulty: playerInfo.average_fixture_difficulty,
-            },
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        console.log(
-          `Predicted points for ${playerInfo.full_name}: ${response.data.predicted_points}`
-        );
-        return response.data.predicted_points;
-      } catch (error) {
-        console.error('Error getting predicted points:', error.message);
-        return null;
-      }
-    }
-
     // Get predicted points from the Flask API
     playerInfo.expected_points = await getPredictedPoints(playerInfo);
 
@@ -225,17 +186,16 @@ export default async function main(playerId) {
     );
 
     // Ensure the output directory exists
-    const outputDir = path.resolve(__dirname, '..', config.outputDir);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir);
-    }
+    const outputDir = path.resolve(config.outputDir);
+    await fs.mkdir(outputDir, { recursive: true });
 
     // Save data to output/player-<playerId>-<date>.json
     const date = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
     const outputFile = path.join(outputDir, `player-${playerId}-${date}.json`);
 
     // Check if file exists and handle overwrite logic
-    if (fs.existsSync(outputFile)) {
+    try {
+      await fs.access(outputFile);
       // Prompt the user using inquirer with default 'yes'
       const { overwrite } = await inquirer.prompt([
         {
@@ -250,24 +210,45 @@ export default async function main(playerId) {
         console.log(`Skipping ${outputFile}`);
         return;
       }
+    } catch (err) {
+      // File does not exist, proceed
     }
 
     // Write data to the file
-    fs.writeFileSync(outputFile, JSON.stringify(combinedData, null, 2));
+    await fs.writeFile(outputFile, JSON.stringify(combinedData, null, 2));
     console.log(`Data saved to ${outputFile}`);
   } catch (error) {
-    console.error('Error retrieving player data:', error);
+    console.error('Error retrieving player data:', error.message);
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  // The script is being run directly
-  const playerId = process.argv[2]; // Get player ID from command-line arguments
-  if (!playerId) {
-    console.error('Please provide a player ID as a command-line argument.');
-    process.exit(1);
+// Function to get predicted points using the Flask API
+async function getPredictedPoints(playerInfo) {
+  try {
+    const response = await axios.post(
+      'http://127.0.0.1:5000/predict',
+      {
+        features: {
+          form: playerInfo.form,
+          average_points: playerInfo.average_points,
+          xG: playerInfo.xG || 0,
+          xA: playerInfo.xA || 0,
+          average_minutes: playerInfo.average_minutes,
+          fixture_difficulty: playerInfo.average_fixture_difficulty,
+        },
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    console.log(
+      `Predicted points for ${playerInfo.full_name}: ${response.data.predicted_points}`
+    );
+    return response.data.predicted_points;
+  } catch (error) {
+    console.error('Error getting predicted points:', error.message);
+    return null;
   }
-  (async () => {
-    await main(playerId);
-  })();
 }

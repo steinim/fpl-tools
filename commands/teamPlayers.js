@@ -1,10 +1,10 @@
 // commands/teamPlayers.js
 
-import axios from "axios";
-import { remove as removeDiacritics } from "diacritics";
-import config from "../config.js";
+import axios from 'axios';
+import { remove as removeDiacritics } from 'diacritics';
+import config from '../config.js';
 
-export default async function (teamName) {
+export default async function teamPlayersCommand(teamName) {
   try {
     // Fetch all players and teams from the API
     const url = `${config.apiBaseUrl}/bootstrap-static/`;
@@ -38,10 +38,10 @@ export default async function (teamName) {
 
     // Map element_type to position names
     const positions = {
-      1: "Goalkeepers",
-      2: "Defenders",
-      3: "Midfielders",
-      4: "Forwards",
+      1: 'Goalkeepers',
+      2: 'Defenders',
+      3: 'Midfielders',
+      4: 'Forwards',
     };
 
     const playersByPosition = teamPlayers.reduce((acc, player) => {
@@ -64,10 +64,10 @@ export default async function (teamName) {
     console.log(`Players for team "${team.name}":\n`);
 
     for (const position of [
-      "Goalkeepers",
-      "Defenders",
-      "Midfielders",
-      "Forwards",
+      'Goalkeepers',
+      'Defenders',
+      'Midfielders',
+      'Forwards',
     ]) {
       if (playersByPosition[position]) {
         console.log(`${position}:`);
@@ -76,16 +76,19 @@ export default async function (teamName) {
             `- ${player.web_name} (Total Points: ${player.total_points})`
           );
         });
-        console.log(""); // Empty line for readability
+        console.log(''); // Empty line for readability
       }
     }
   } catch (error) {
-    console.error("Error fetching team players:", error.message);
+    console.error('Error fetching team players:', error.message);
   }
 }
 
 // Helper function to normalize names
 function normalizeName(name) {
-  // Remove diacritics and convert to lowercase
-  return removeDiacritics(name).toLowerCase();
+  // Remove diacritics, convert to lowercase, and trim
+  return removeDiacritics(name)
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, '') // Remove non-letter characters
+    .trim();
 }

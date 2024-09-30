@@ -1,11 +1,11 @@
 // commands/searchPlayer.js
 
-import axios from "axios";
-import { remove as removeDiacritics } from "diacritics";
-import inquirer from "inquirer";
-import config from "../config.js";
+import axios from 'axios';
+import { remove as removeDiacritics } from 'diacritics';
+import inquirer from 'inquirer';
+import config from '../config.js';
 
-export default async function (playerName) {
+export default async function searchPlayerCommand(playerName) {
   try {
     // Fetch all players from the API
     const url = `${config.apiBaseUrl}/bootstrap-static/`;
@@ -49,8 +49,8 @@ export default async function (playerName) {
 
       const { selectedPlayerId } = await inquirer.prompt([
         {
-          type: "list",
-          name: "selectedPlayerId",
+          type: 'list',
+          name: 'selectedPlayerId',
           message: `Found ${matches.length} players matching "${playerName}". Select a player:`,
           choices,
         },
@@ -64,7 +64,7 @@ export default async function (playerName) {
       );
     }
   } catch (error) {
-    console.error("Error searching for player:", error.message);
+    console.error('Error searching for player:', error.message);
   }
 }
 
