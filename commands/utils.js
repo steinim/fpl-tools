@@ -18,7 +18,7 @@ export async function getUnderstatPlayerId(playerDetails) {
     // If manual mapping not found, proceed with name matching
 
     // Fetch the Understat players page
-    const url = 'https://understat.com/league/EPL';
+    const url = 'https://understat.com/league/EPL/';
     const response = await axios.get(url);
     const $ = cheerio.load(response.data);
 
@@ -109,21 +109,25 @@ export async function getUnderstatPlayerStatsPerGameweek(playerId) {
 
     // Extract JSON data
     const matchesData = extractJsonFromScript(matchesDataScript, 'matchesData');
+    if (!matchesData) return null;
 
     // Map data to gameweeks
     const statsPerGameweek = {};
 
     for (const match of matchesData) {
-      const matchDate = new Date(match.datetime);
+      if (match.season !== '2024')  continue;
+      const matchDate = new Date(match.date);
       const gw = await getGameweekFromDate(matchDate);
       if (!gw) continue;
 
       if (!statsPerGameweek[gw]) {
+        //console.log(`No stats found for gameweek ${gw} for player ID ${playerId}`);
         statsPerGameweek[gw] = { xG: 0, xA: 0 };
       }
 
       statsPerGameweek[gw].xG += parseFloat(match.xG);
       statsPerGameweek[gw].xA += parseFloat(match.xA);
+      //console.log(`Stats for player ID ${playerId} in gameweek ${gw}:  `, statsPerGameweek[gw]);
     }
 
     return statsPerGameweek;
@@ -222,14 +226,20 @@ export async function getGameweekFromDate(date) {
   if (!gameweekDateMapping) {
     gameweekDateMapping = await buildGameweekDateMapping();
     if (!gameweekDateMapping) return null;
+    //console.log(gameweekDateMapping);
   }
+  const gw1Date = new Date(gameweekDateMapping[1].start);
 
-  // Ensure the date is a Date object
-  const targetDate = new Date(date);
+  // Ensure the date is a Date object and set time part to 0
+  const targetDate = new Date(date).setHours(0,0,0,0);
 
   // Iterate over gameweeks to find where the date falls
   for (const [gameweek, dates] of Object.entries(gameweekDateMapping)) {
-    if (targetDate >= dates.start && targetDate <= dates.end) {
+
+    const startDate = new Date(dates.start).setHours(0,0,0,0);
+    const endDate = new Date(dates.end).setHours(0,0,0,0);
+
+    if (targetDate >= startDate && targetDate <= endDate) {
       return parseInt(gameweek, 10);
     }
   }
@@ -281,7 +291,7 @@ export async function buildGameweekDateMapping() {
       }
     }
   });
-
+  // console.log(gameweekDates);
   return gameweekDates;
 }
 

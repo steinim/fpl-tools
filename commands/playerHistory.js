@@ -8,7 +8,8 @@ import config from '../config.js';
 import {
   getUnderstatPlayerId,
   getUnderstatPlayerStatsPerGameweek,
-  addTeamName
+  addTeamName,
+  getCurrentGameweek
 } from './utils.js';
 
 export default async function playerHistoryCommand(playerIds, numPastGWs) {
@@ -22,6 +23,16 @@ export default async function playerHistoryCommand(playerIds, numPastGWs) {
     numPastGWs = parseInt(numPastGWs, 10);
     if (isNaN(numPastGWs) || numPastGWs <= 0) {
       console.error('Error: Number of past gameweeks must be a positive integer.');
+      process.exit(1);
+    }
+    if (numPastGWs > 38) {
+      console.error('Error: Number of past gameweeks cannot exceed 38.');
+      process.exit(1);
+    };
+    const currentGameweek = await getCurrentGameweek();
+    const gameWeeksPlayed = currentGameweek - 1;
+    if (numPastGWs > gameWeeksPlayed) {
+      console.error(`Error: Number of past gameweeks cannot exceed number of gameweeks played (${gameWeeksPlayed}).`);
       process.exit(1);
     }
 
@@ -179,6 +190,7 @@ export default async function playerHistoryCommand(playerIds, numPastGWs) {
           const understatStats = understatStatsPerGW[gw] || { xG: 0, xA: 0 };
           const xG = understatStats.xG;
           const xA = understatStats.xA;
+          console.log(`xG: ${xG}, xA: ${xA} for player: ${playerName} in gameweek: ${gw}`);
 
           // Actual points in the gameweek
           const actualPoints = gwData.total_points;
