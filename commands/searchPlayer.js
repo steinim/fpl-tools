@@ -38,7 +38,7 @@ export default async function searchPlayerCommand(playerName) {
       const player = matches[0];
       console.log(`Found 1 player matching "${playerName}":`);
       console.log(
-        `- ID: ${player.id}, Name: ${player.first_name} ${player.second_name}`
+        `- ID: ${player.id}, Name: ${player.first_name} ${player.second_name}, Team: ${player.team_code}`
       );
     } else {
       // Present a list for the user to select

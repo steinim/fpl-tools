@@ -4,46 +4,15 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { remove as removeDiacritics } from 'diacritics';
 import stringSimilarity from 'string-similarity';
-import config from '../config.js';
-
-// Manual mapping of FPL player IDs to Understat player IDs
-const manualUnderstatMapping = {
-  // FPL player ID: Understat player ID
-
-  // Joško Gvardiol
-  661: 11958,
-
-  // Gabriel Magalhães
-  201: 9164,
-
-  // Mohamed Salah
-  250: 1250,
-
-  // Diogo Jota
-  309: 644,
-
-  // Anthony Gordon
-  350: 9401,
-
-  // Ollie Watkins
-  398: 2208,
-
-  // Erling Haaland
-  602: 10155,
-
-  // João Pedro
-  461: 11107,
-
-  // Add more mappings as needed
-};
+import config, { manualFplUnderstatMapping } from '../config.js';
 
 export async function getUnderstatPlayerId(playerDetails) {
   try {
     const fplPlayerId = playerDetails.id;
 
     // Check manual mapping first
-    if (manualUnderstatMapping[fplPlayerId]) {
-      return manualUnderstatMapping[fplPlayerId];
+    if (manualFplUnderstatMapping[fplPlayerId]) {
+      return manualFplUnderstatMapping[fplPlayerId];
     }
 
     // If manual mapping not found, proceed with name matching
@@ -106,12 +75,12 @@ export async function getUnderstatPlayerId(playerDetails) {
       // Adjust threshold as needed
       return understatPlayersMap[bestMatch.target].id;
     } else {
-      console.warn(`No Understat data found for player "${playerDetails.web_name}".`);
+      console.warn(`No Understat data found for player "${playerDetails.web_name}" playing for team "${playerDetails.team_code}".`);
       return null;
     }
   } catch (error) {
     console.error(
-      `Error fetching Understat player ID for "${playerDetails.web_name}":`,
+      `Error fetching Understat player ID for "${playerDetails.web_name} playing for team "${playerDetails.team_code}":`,
       error.message
     );
     return null;

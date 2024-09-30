@@ -11,6 +11,8 @@ export default async function teamPlayersCommand(teamName) {
     const response = await axios.get(url);
     const players = response.data.elements;
     const teams = response.data.teams;
+    console.log(teams);
+
 
     // Normalize the input team name
     const normalizedInputTeamName = normalizeName(teamName);
@@ -61,7 +63,7 @@ export default async function teamPlayersCommand(teamName) {
     }
 
     // Display the results
-    console.log(`Players for team "${team.name}":\n`);
+    console.log(`Players for team "${team.name}" (ID: ${team.id}):\n`);
 
     for (const position of [
       'Goalkeepers',

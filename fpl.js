@@ -5,7 +5,6 @@
 import { Command } from 'commander';
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import teamCommand from './commands/team.js';
 import fixturesCommand from './commands/fixtures.js';
 import playerCommand from './commands/player.js';
@@ -13,10 +12,8 @@ import playersCommand from './commands/players.js';
 import picksCommand from './commands/picks.js';
 import searchPlayerCommand from './commands/searchPlayer.js';
 import teamPlayersCommand from './commands/teamPlayers.js';
+import playerHistoryCommand from './commands/playerHistory.js';
 import config from './config.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const program = new Command();
 
@@ -139,15 +136,7 @@ program
         process.exit(1);
       }
 
-      for (const playerId of playerIds) {
-        // Parameter Validation
-        if (!/^\d+$/.test(playerId) || parseInt(playerId, 10) <= 0) {
-          console.error(`Error: Player ID "${playerId}" must be a positive integer.`);
-          continue; // Skip invalid player IDs
-        }
-
-        await playerCommand(playerId);
-      }
+      await playersCommand(playerIds);
     } catch (error) {
       console.error('An error occurred:', error.message);
     }
@@ -219,17 +208,62 @@ program
     }
   });
 
+// Player-history command
+program
+  .command('player-history')
+  .description('Collect historical data for specified players')
+  .usage('[options]')
+  .option(
+    '-i, --id <player-ids...>',
+    'Player ID(s), can provide multiple IDs separated by spaces'
+  )
+  .option('-f, --file <path>', 'Path to a file containing player IDs (one per line)')
+  .option(
+    '-n, --num-gws <number>',
+    'Number of past gameweeks to collect data for (default: 10)',
+    '10'
+  )
+  .action(async (options) => {
+    try {
+      let playerIds = [];
+
+      if (options.id) {
+        playerIds = options.id;
+      } else if (options.file) {
+        const fileContent = await fs.readFile(options.file, 'utf-8');
+        playerIds = fileContent.split(/\r?\n/).filter((line) => line.trim() !== '');
+      } else {
+        console.error('Error: No player IDs provided.');
+        process.exit(1);
+      }
+
+      // Validate number of gameweeks
+      const numPastGWs = parseInt(options.numGws, 10);
+      if (isNaN(numPastGWs) || numPastGWs <= 0) {
+        console.error(
+          'Error: Number of past gameweeks must be a positive integer.'
+        );
+        process.exit(1);
+      }
+
+      await playerHistoryCommand(playerIds, numPastGWs);
+    } catch (error) {
+      console.error('An error occurred:', error.message);
+    }
+  });
+
 // Enhance the help output to list available commands
 program.on('--help', () => {
   console.log('');
   console.log('Available Commands:');
-  console.log('  team          Retrieve information about FPL teams');
-  console.log('  fixtures      Retrieve fixtures for specified gameweeks');
-  console.log('  player        Retrieve detailed information about a specific player');
-  console.log('  players       Retrieve detailed information about multiple players');
-  console.log("  picks         Retrieve a manager's squad picks for a specific gameweek");
-  console.log('  search-player Search for a player ID based on name');
-  console.log('  team-players  List all players on a given team, ordered by total points per position');
+  console.log('  team            Retrieve information about FPL teams');
+  console.log('  fixtures        Retrieve fixtures for specified gameweeks');
+  console.log('  player          Retrieve detailed information about a specific player');
+  console.log('  players         Retrieve detailed information about multiple players');
+  console.log("  picks           Retrieve a manager's squad picks for a specific gameweek");
+  console.log('  search-player   Search for a player ID based on name');
+  console.log('  team-players    List all players on a given team, ordered by total points per position');
+  console.log('  player-history  Collect historical data for specified players');
   console.log('');
   console.log('For more information on a specific command, use "fpl <command> --help"');
 });
