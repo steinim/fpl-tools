@@ -5,15 +5,19 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import inquirer from 'inquirer';
-import * as cheerio from 'cheerio';
-import { remove as removeDiacritics } from 'diacritics';
 import config from '../config.js';
-import { addTeamName, extractJsonFromScript } from './utils.js';
+import {
+  addTeamName,
+  getUnderstatPlayerId,
+  getUnderstatPlayerStatsPerGameweek,
+} from './utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export default async function (playerId) {
+export default async function main(playerId) {
+  console.log(`Starting data retrieval for player ID ${playerId}...`);
+
   // Validate playerId
   if (!/^\d+$/.test(playerId) || parseInt(playerId, 10) <= 0) {
     throw new Error('Player ID must be a positive integer.');
@@ -33,11 +37,14 @@ export default async function (playerId) {
     const bootstrapData = bootstrapResponse.data;
 
     // Get player details
-    const playerDetails = bootstrapData.elements.find((p) => p.id === parseInt(playerId));
+    const playerDetails = bootstrapData.elements.find(
+      (p) => p.id === parseInt(playerId)
+    );
     if (!playerDetails) {
       console.error(`Player with ID ${playerId} not found.`);
       return;
     }
+    console.log(`Found player with ID ${playerId}.`);
 
     // Create team ID to name mapping
     const teamIdToName = {};
@@ -73,6 +80,8 @@ export default async function (playerId) {
       status: playerDetails.status,
     };
 
+    console.log(`Added additional player info for ${playerName}.`);
+
     // Calculate recent form and minutes
     const N = 5; // Number of recent games to consider
     const recentHistory = playerSummaryData.history.slice(-N);
@@ -85,80 +94,124 @@ export default async function (playerId) {
     playerInfo.average_points = parseFloat(averagePoints.toFixed(2));
     playerInfo.average_minutes = parseFloat(averageMinutes.toFixed(2));
 
+    console.log(`Calculated recent form and minutes for ${playerName}.`);
+
     // Check player availability
     const unavailableStatuses = ['i', 's', 'u']; // Injured, suspended, unavailable
     playerInfo.is_available = !unavailableStatuses.includes(playerDetails.status);
+
+    console.log(`Checked player availability for ${playerName}.`);
 
     // Add opponent_team_id and opponent_team_name to fixtures
     const fixturesWithTeamNames = playerSummaryData.fixtures.map((fixture) => {
       // Determine opponent team based on is_home
       const opponentTeamId = fixture.is_home ? fixture.team_a : fixture.team_h;
+      console.log(`Found opponent team ID for ${playerName}: ${opponentTeamId}`);
       // Add opponent_team field to fixture
       fixture.opponent_team = opponentTeamId;
       // Add opponent_team_name using addTeamName
-      return addTeamName(fixture, 'opponent_team', 'opponent_team_name', teamIdToName);
+      const fixtureWithTeamName = addTeamName(
+        fixture,
+        'opponent_team',
+        'opponent_team_name',
+        teamIdToName
+      );
+      console.log(
+        `Adding opponent team information to the game where ${playerInfo.full_name} plays against ${fixtureWithTeamName.opponent_team_name} in ${fixture.event_name}.`
+      );
+      return fixtureWithTeamName;
     });
+
+    console.log(`Added opponent team information to fixtures for ${playerName}.`);
 
     // Aggregate upcoming fixture difficulty
     const M = 3; // Number of upcoming fixtures to consider
     const upcomingFixtures = fixturesWithTeamNames.slice(0, M);
 
-    const totalDifficulty = upcomingFixtures.reduce((sum, fixture) => sum + fixture.difficulty, 0);
+    const totalDifficulty = upcomingFixtures.reduce(
+      (sum, fixture) => sum + fixture.difficulty,
+      0
+    );
     const averageDifficulty = totalDifficulty / M || 0;
 
     playerInfo.upcoming_fixtures = upcomingFixtures;
     playerInfo.total_fixture_difficulty = totalDifficulty;
-    playerInfo.average_fixture_difficulty = parseFloat(averageDifficulty.toFixed(2));
+    playerInfo.average_fixture_difficulty = parseFloat(
+      averageDifficulty.toFixed(2)
+    );
+
+    console.log(`Calculated upcoming fixture difficulty for ${playerName}.`);
 
     // Fetch Understat player ID
-    const understatPlayerId = await getUnderstatPlayerId(playerName);
+    const understatPlayerId = await getUnderstatPlayerId(playerDetails);
 
     if (understatPlayerId) {
-      // Fetch Understat stats
-      const understatStats = await getUnderstatPlayerStats(understatPlayerId);
+      // Fetch Understat stats per gameweek
+      const understatStatsPerGW = await getUnderstatPlayerStatsPerGameweek(
+        understatPlayerId
+      );
 
-      if (understatStats) {
-        playerInfo.xG = understatStats.xG;
-        playerInfo.xA = understatStats.xA;
+      if (understatStatsPerGW) {
+        // Sum up xG and xA
+        const totalxG = Object.values(understatStatsPerGW).reduce(
+          (sum, gw) => sum + gw.xG,
+          0
+        );
+        const totalxA = Object.values(understatStatsPerGW).reduce(
+          (sum, gw) => sum + gw.xA,
+          0
+        );
+
+        playerInfo.xG = parseFloat(totalxG.toFixed(2));
+        playerInfo.xA = parseFloat(totalxA.toFixed(2));
+
+        console.log(`Fetched Understat xG and xA for ${playerName}.`);
       } else {
-        playerInfo.xG = null;
-        playerInfo.xA = null;
+        playerInfo.xG = 0;
+        playerInfo.xA = 0;
+        console.log(`Failed to fetch Understat xG and xA for ${playerName}.`);
       }
     } else {
-      playerInfo.xG = null;
-      playerInfo.xA = null;
+      playerInfo.xG = 0;
+      playerInfo.xA = 0;
+      console.log(`Couldn't find Understat player ID for ${playerName}.`);
     }
 
-    // Simple predictive model
-    function predictExpectedPoints(playerInfo) {
-      // Define weights for each metric
-      const weights = {
-        form: 0.3,
-        average_points: 0.2,
-        average_minutes: 0.1,
-        average_fixture_difficulty: -0.1, // Negative weight since higher difficulty reduces expected points
-        xG: 0.2,
-        xA: 0.1,
-      };
-
-      // Handle null values for xG and xA
-      const xG = playerInfo.xG || 0;
-      const xA = playerInfo.xA || 0;
-
-      // Compute weighted sum
-      const expectedPoints =
-        weights.form * playerInfo.form +
-        weights.average_points * playerInfo.average_points +
-        weights.average_minutes * (playerInfo.average_minutes / 90) + // Normalize minutes
-        weights.average_fixture_difficulty * playerInfo.average_fixture_difficulty +
-        weights.xG * xG +
-        weights.xA * xA;
-
-      return parseFloat(expectedPoints.toFixed(2));
+    // Function to get predicted points using the Flask API
+    async function getPredictedPoints(playerInfo) {
+      try {
+        const response = await axios.post(
+          'http://127.0.0.1:5000/predict',
+          {
+            features: {
+              form: playerInfo.form,
+              average_points: playerInfo.average_points,
+              xG: playerInfo.xG || 0,
+              xA: playerInfo.xA || 0,
+              average_minutes: playerInfo.average_minutes,
+              fixture_difficulty: playerInfo.average_fixture_difficulty,
+            },
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        console.log(
+          `Predicted points for ${playerInfo.full_name}: ${response.data.predicted_points}`
+        );
+        return response.data.predicted_points;
+      } catch (error) {
+        console.error('Error getting predicted points:', error.message);
+        return null;
+      }
     }
 
-    // Add expected points to playerInfo
-    playerInfo.expected_points = predictExpectedPoints(playerInfo);
+    // Get predicted points from the Flask API
+    playerInfo.expected_points = await getPredictedPoints(playerInfo);
+
+    console.log(`Fetched details for player: ${playerInfo.full_name}`);
 
     // Combine data
     const combinedData = {
@@ -166,6 +219,10 @@ export default async function (playerId) {
       history: playerSummaryData.history, // Past performance
       fixtures: fixturesWithTeamNames, // Upcoming fixtures with opponent team names
     };
+
+    console.log(
+      `Combined player info, history, and fixtures for player: ${playerInfo.full_name}`
+    );
 
     // Ensure the output directory exists
     const outputDir = path.resolve(__dirname, '..', config.outputDir);
@@ -199,105 +256,18 @@ export default async function (playerId) {
     fs.writeFileSync(outputFile, JSON.stringify(combinedData, null, 2));
     console.log(`Data saved to ${outputFile}`);
   } catch (error) {
-    console.error('Error retrieving player data:', error.message);
+    console.error('Error retrieving player data:', error);
   }
 }
 
-// Helper functions
-
-function normalizeName(name) {
-  // Remove diacritics and convert to lowercase
-  return removeDiacritics(name)
-    .toLowerCase()
-    .replace(/[^a-z\s]/g, '')
-    .trim();
-}
-
-async function getUnderstatPlayerId(playerName) {
-  try {
-    const url = 'https://understat.com/league/EPL';
-    const response = await axios.get(url);
-    const $ = cheerio.load(response.data);
-
-    // Extract JavaScript data from the page
-    const scripts = $('script:not([src])');
-    let playersDataScript = null;
-
-    scripts.each((i, script) => {
-      const html = $(script).html();
-      if (html.includes('playersData')) {
-        playersDataScript = html;
-      }
-    });
-
-    if (!playersDataScript) {
-      throw new Error('playersData not found in the page.');
-    }
-
-    // Extract JSON from the script content
-    const playersData = extractJsonFromScript(playersDataScript, 'playersData');
-    if (!playersData) return null;
-
-    // Normalize the player name
-    const normalizedInputName = normalizeName(playerName);
-
-    // Find the matching player
-    const understatPlayer = playersData.find((player) => {
-      const normalizedUnderstatName = normalizeName(player.player_name);
-      return normalizedUnderstatName === normalizedInputName;
-    });
-
-    if (!understatPlayer) {
-      console.warn(`No Understat data found for
- player "${playerName}".`);
-      return null;
-    }
-
-    return understatPlayer.id;
-  } catch (error) {
-    console.error(`Error fetching Understat player ID for "${playerName}":`, error.message);
-    return null;
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  // The script is being run directly
+  const playerId = process.argv[2]; // Get player ID from command-line arguments
+  if (!playerId) {
+    console.error('Please provide a player ID as a command-line argument.');
+    process.exit(1);
   }
+  (async () => {
+    await main(playerId);
+  })();
 }
-
-async function getUnderstatPlayerStats(playerId) {
-  try {
-    const url = `https://understat.com/player/${playerId}`;
-    const response = await axios.get(url);
-    const $ = cheerio.load(response.data);
-
-    // Extract JavaScript data from the page
-    const scripts = $('script:not([src])');
-    let playerDataScript;
-    scripts.each((i, script) => {
-      const html = $(script).html();
-      if (html.includes('matchesData')) {
-        playerDataScript = html;
-      }
-    });
-
-    if (!playerDataScript) {
-      throw new Error('matchesData script not found');
-    }
-
-    // Extract playerData JSON using the utility function
-    const playerData = extractJsonFromScript(playerDataScript, 'matchesData');
-
-    // Sum xG and xA over all matches
-    let totalxG = 0;
-    let totalxA = 0;
-    playerData.forEach((match) => {
-      totalxG += parseFloat(match.xG);
-      totalxA += parseFloat(match.xA);
-    });
-
-    return {
-      xG: parseFloat(totalxG.toFixed(2)),
-      xA: parseFloat(totalxA.toFixed(2)),
-    };
-  } catch (error) {
-    console.error(`Error fetching Understat stats for player ID "${playerId}":`, error.message);
-    return null;
-  }
-}
-
