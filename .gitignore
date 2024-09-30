@@ -5,6 +5,9 @@ output_old/
 **/output/*
 /model/*
 **/model/*
+data/*
+**/data/*
+/data/*
 00-my-id.txt
 cookies.txt
 package-lock.json
