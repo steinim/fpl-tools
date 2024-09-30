@@ -28,11 +28,17 @@ export default async function playerHistoryCommand(playerIds, numPastGWs) {
     // Ensure the data directory exists
     const dataDir = path.resolve(config.dataDir);
     await fs.mkdir(dataDir, { recursive: true });
-
     // Output CSV files
     const outputCsv = path.join(dataDir, 'player_history.csv');
-    const noOwnershipFile = path.join(dataDir, 'players_not_found.txt');
-    const noUnderstatFile = path.join(dataDir, 'players_no_understat.txt');
+    
+    // Ensure the output directory exists
+    const outputDir = path.resolve(config.outputDir);
+    await fs.mkdir(outputDir, { recursive: true });
+    // Output text files
+    const noOwnershipFile = path.join(outputDir, 'players_no_ownership.txt');
+    const noUnderstatFile = path.join(outputDir, 'players_no_understat.txt');
+    await fs.writeFile(noOwnershipFile, '# Players with 0% ovnership\n');
+    await fs.writeFile(noUnderstatFile, '# Players without Understat data\n');
 
     // Check if file exists and handle overwrite logic
     try {
@@ -114,8 +120,6 @@ export default async function playerHistoryCommand(playerIds, numPastGWs) {
         // Get player full name
         const playerName = `${playerDetails.first_name} ${playerDetails.second_name}`;
 
-        await fs.appendFile(noOwnershipFile, '# Players with 0% ovnership\n');
-        await fs.appendFile(noUnderstatFile, '# Players without Understat data\n');
         if (playerDetails.selected_by_percent === '0.0') {
           const noOwnershipPlayer = `${playerName}: `;
           await fs.appendFile(noOwnershipFile, noOwnershipPlayer);
