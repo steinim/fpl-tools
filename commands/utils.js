@@ -115,7 +115,7 @@ export async function getUnderstatPlayerStatsPerGameweek(playerId) {
     const statsPerGameweek = {};
 
     for (const match of matchesData) {
-      if (match.season !== '2024')  continue;
+      if (match.season !== config.season)  continue;
       const matchDate = new Date(match.date);
       const gw = await getGameweekFromDate(matchDate);
       if (!gw) continue;

@@ -145,7 +145,7 @@ program
 // Picks command
 program
   .command('picks')
-  .description("Retrieve a manager's squad picks for a specific gameweek")
+  .description('Retrieve a manager\'s squad picks for a specific gameweek')
   .usage('[options]')
   .option('-i, --id <team-id>', 'Team ID (defaults to myId from config.js)')
   .option('-g, --gw <gameweek>', 'Gameweek number (defaults to current gameweek)')
@@ -260,7 +260,7 @@ program.on('--help', () => {
   console.log('  fixtures        Retrieve fixtures for specified gameweeks');
   console.log('  player          Retrieve detailed information about a specific player');
   console.log('  players         Retrieve detailed information about multiple players');
-  console.log("  picks           Retrieve a manager's squad picks for a specific gameweek");
+  console.log('  picks           Retrieve a manager\'s squad picks for a specific gameweek');
   console.log('  search-player   Search for a player ID based on name');
   console.log('  team-players    List all players on a given team, ordered by total points per position');
   console.log('  player-history  Collect historical data for specified players');

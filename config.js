@@ -5,7 +5,8 @@ export default{
   defaultTeamIds: [2623803,2708991,2625012,3366236],
   outputDir: 'output',
   dataDir: 'data',
-  apiBaseUrl: 'https://fantasy.premierleague.com/api'
+  apiBaseUrl: 'https://fantasy.premierleague.com/api',
+  season: '2024'
 };
 
 //************/
