@@ -45,7 +45,7 @@ async function fetchFplFormData() {
     spinner.text = 'Waiting for the table to be fully rendered...';
     await page.waitForSelector('#players tbody tr');
 
-    // Extract table headers and rows
+    // Extract table headers and rows, including the player ID from the class attribute
     spinner.text = 'Extracting table data...';
     const tableData = await page.evaluate(() => {
       // Select the table
@@ -61,9 +61,18 @@ async function fetchFplFormData() {
         return { headerText, tooltip };
       });
 
+      // Add an additional header for the Player ID
+      headers.push({ headerText: 'Player ID', tooltip: '' });
+
       // Extract rows from the table body
       const rows = Array.from(table.querySelectorAll('tbody tr')).map(row => {
-        return Array.from(row.querySelectorAll('td')).map(col => col.textContent.trim());
+        const rowData = Array.from(row.querySelectorAll('td')).map(col => col.textContent.trim());
+
+        // Extract player ID from the first class of the <tr> element (assuming it's always the player ID)
+        const playerId = row.className.split(' ')[0]; // Extract the first class as the player ID
+        rowData.push(playerId);
+
+        return rowData;
       });
 
       return { headers, rows };
