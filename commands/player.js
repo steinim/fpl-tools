@@ -217,6 +217,7 @@ export default async function playerCommand(playerId) {
     // Write data to the file
     await fs.writeFile(outputFile, JSON.stringify(combinedData, null, 2));
     console.log(`Data saved to ${outputFile}`);
+    return combinedData; // Returning data for merging data in the players command
   } catch (error) {
     console.error('Error retrieving player data:', error.message);
   }

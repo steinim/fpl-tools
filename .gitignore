@@ -3,6 +3,11 @@
 output_old/
 **/output_old/
 **/output/*
+old-output/
+old/output_old2/
+test.js
+**/old-output/*
+**/old/output_old2/*
 /model/*
 **/model/*
 data/*
@@ -19,6 +24,8 @@ output_old/
 venv/
 **/venv/
 **/output/*
+fpl-form-webpage*/*
+**/fpl-form-webpage*/*
 
 # Created by https://www.toptal.com/developers/gitignore/api/visualstudiocode,macos,node,python,venv
 # Edit at https://www.toptal.com/developers/gitignore?templates=visualstudiocode,macos,node,python,venv

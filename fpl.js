@@ -13,6 +13,7 @@ import picksCommand from './commands/picks.js';
 import searchPlayerCommand from './commands/searchPlayer.js';
 import teamPlayersCommand from './commands/teamPlayers.js';
 import playerHistoryCommand from './commands/playerHistory.js';
+import fetchFplFormCommand from './commands/fetch-fplform-data.js';
 import config from './config.js';
 
 const program = new Command();
@@ -252,6 +253,20 @@ program
     }
   });
 
+  // FPL Form Data command
+program
+.command('fpl-form')
+.description('Retrieve FPL form data')
+.option('--path <path>', 'Path to save the output CSV', 'output/fpl-form-data.csv')
+.action(async (options) => {
+  try {
+    const outputPath = options.path || 'output/fpl-form-data.csv';
+    await fetchFplFormCommand(outputPath);
+  } catch (error) {
+    console.error('Error fetching FPL form data:', error.message);
+  }
+});
+
 // Enhance the help output to list available commands
 program.on('--help', () => {
   console.log('');
@@ -264,6 +279,7 @@ program.on('--help', () => {
   console.log('  search-player   Search for a player ID based on name');
   console.log('  team-players    List all players on a given team, ordered by total points per position');
   console.log('  player-history  Collect historical data for specified players');
+  console.log('  fpl-form        Retrieve FPL form data'); // Added this line to help command
   console.log('');
   console.log('For more information on a specific command, use "fpl <command> --help"');
 });
